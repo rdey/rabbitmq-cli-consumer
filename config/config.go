@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/gcfg.v1"
 )
@@ -21,6 +22,7 @@ type Config struct {
 		Compression  bool
 		Onfailure    int
 		Stricfailure bool
+		Heartbeat    int
 	}
 	Prefetch struct {
 		Count  int
@@ -230,6 +232,11 @@ func (c Config) ConsumerTag() string {
 	return fmt.Sprintf("ctag-%s-%d@%s", os.Args[0], os.Getpid(), host)
 }
 
+// HeartbeatDuration returns the configured heartbeat interval as a time.Duration.
+func (c Config) HeartbeatDuration() time.Duration {
+	return time.Duration(c.RabbitMq.Heartbeat) * time.Second
+}
+
 // LoadAndParse creates a new instance of config by parsing the content of teh given file.
 func LoadAndParse(location string) (*Config, error) {
 	if !filepath.IsAbs(location) {
@@ -268,6 +275,7 @@ func CreateFromString(data string) (*Config, error) {
 // SetDefaultQueueDurability sets queue durable to true to keep backwards compatibility
 func SetDefaultQueueDurability(cfg *Config) {
 	cfg.QueueSettings.Durable = true
+	cfg.RabbitMq.Heartbeat = 10
 }
 
 func transformToStringValue(val string) string {

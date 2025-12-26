@@ -1,5 +1,7 @@
 package consumer
 
+import "time"
+
 // Config defines the interface to present configurations to the consumer.
 type Config interface {
 	AmqpUrl() string
@@ -26,4 +28,5 @@ type Config interface {
 	QueueIsExclusive() bool
 	QueueIsAutoDelete() bool
 	QueueIsNoWait() bool
+	HeartbeatDuration() time.Duration
 }

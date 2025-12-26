@@ -34,7 +34,9 @@ func New(conn Connection, ch Channel, p processor.Processor, l logr.Logger) *Con
 // configuration.
 func NewFromConfig(cfg Config, p processor.Processor, l logr.Logger) (*Consumer, error) {
 	l.Info("Connecting RabbitMQ...")
-	conn, err := amqp.Dial(cfg.AmqpUrl())
+	conn, err := amqp.DialConfig(cfg.AmqpUrl(), amqp.Config{
+		Heartbeat: cfg.HeartbeatDuration(),
+	})
 	if nil != err {
 		return nil, fmt.Errorf("failed connecting RabbitMQ: %v", err)
 	}

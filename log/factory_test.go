@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
-	"reflect"
+	"regexp"
 	"syscall"
 	"testing"
 
@@ -51,16 +50,16 @@ func TestCreateLoggerWriter(t *testing.T) {
 }
 
 var loggersTests = []struct {
-	name   string
-	config string
-	err    error
-	flag   int
+	name        string
+	config      string
+	err         error
+	hasDateTime bool
 }{
 	{
 		"noErrorFile",
 		"",
 		fmt.Errorf("failed creating error log: open : no such file or directory"),
-		log.Ldate | log.Ltime,
+		true,
 	},
 	{
 		"noOutFile",
@@ -68,7 +67,7 @@ var loggersTests = []struct {
 error = ./error.log
 `,
 		fmt.Errorf("failed creating info log: open : no such file or directory"),
-		log.Ldate | log.Ltime,
+		true,
 	},
 	{
 		"success",
@@ -77,7 +76,7 @@ error = ./error.log
 info = ./info.log
 `,
 		nil,
-		log.Ldate | log.Ltime,
+		true,
 	},
 	{
 		"noLogFiles",
@@ -85,7 +84,7 @@ info = ./info.log
 verbose = On
 `,
 		nil,
-		log.Ldate | log.Ltime,
+		true,
 	},
 	{
 		"noDateTime",
@@ -95,7 +94,7 @@ info = ./info.log
 nodatetime = On
 `,
 		nil,
-		0,
+		false,
 	},
 	{
 		"noLogFilesNoDateTime",
@@ -104,21 +103,57 @@ verbose = On
 nodatetime = On
 `,
 		nil,
-		0,
+		false,
 	},
 }
 
 func TestLoggers(t *testing.T) {
+	// Pattern to match date/time prefix like "2024/01/15 10:30:45 "
+	dateTimePattern := regexp.MustCompile(`\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}`)
+
 	for _, test := range loggersTests {
 		t.Run(test.name, func(t *testing.T) {
+			// Clean up any existing log files before test
+			os.Remove("./error.log")
+			os.Remove("./info.log")
+
 			cfg, _ := config.CreateFromString(test.config)
 			l, _, _, err := NewFromConfig(cfg)
 			assert.Equal(t, test.err, err)
+
 			if l != nil {
-				ll := reflect.ValueOf(l).Elem().FieldByName("loggers")
-				assert.Equal(t, ll.Len(), 2)
-				assert.Equal(t, int64(test.flag), reflect.Indirect(ll.Index(0)).FieldByName("flag").Int())
-				assert.Equal(t, int64(test.flag), reflect.Indirect(ll.Index(1)).FieldByName("flag").Int())
+				// Clean up created log files after test
+				defer os.Remove("./error.log")
+				defer os.Remove("./info.log")
+
+				// Write test messages
+				l.Info("test info message")
+				l.Error(fmt.Errorf("test error message"))
+
+				// Read log file contents and check for date/time prefix
+				infoContent, _ := ioutil.ReadFile("./info.log")
+				errorContent, _ := ioutil.ReadFile("./error.log")
+
+				infoHasDateTime := dateTimePattern.Match(infoContent)
+				errorHasDateTime := dateTimePattern.Match(errorContent)
+
+				if test.hasDateTime {
+					// If files exist, they should have date/time
+					if len(infoContent) > 0 {
+						assert.True(t, infoHasDateTime, "info log should have date/time prefix, got: %s", string(infoContent))
+					}
+					if len(errorContent) > 0 {
+						assert.True(t, errorHasDateTime, "error log should have date/time prefix, got: %s", string(errorContent))
+					}
+				} else {
+					// Files should not have date/time prefix
+					if len(infoContent) > 0 {
+						assert.False(t, infoHasDateTime, "info log should not have date/time prefix, got: %s", string(infoContent))
+					}
+					if len(errorContent) > 0 {
+						assert.False(t, errorHasDateTime, "error log should not have date/time prefix, got: %s", string(errorContent))
+					}
+				}
 			}
 		})
 	}

@@ -32,6 +32,9 @@ var (
 	date    = "unknown"
 )
 
+// osExit is the function called to exit the process. It can be replaced in tests.
+var osExit = os.Exit
+
 // flags is the list of global flags known to the application.
 var flags []cli.Flag = []cli.Flag{
 	cli.StringFlag{
@@ -254,7 +257,7 @@ func ExitErrHandler(_ *cli.Context, err error) {
 		code = exitErr.ExitCode()
 	}
 
-	os.Exit(code)
+	osExit(code)
 }
 
 // CreateBuilder creates a new empty instance of command.Builder.
